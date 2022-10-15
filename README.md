@@ -1,2 +1,2 @@
-# suumo-site-scraping-Python-
+# suumo-site-scraping-スクレイピング
 Pythonを使いSUUMOのサイトをスクレイピングしCSVファイルで保存するプログラム
