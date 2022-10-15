@@ -92,4 +92,4 @@ for page in range(1, max_page+1):
 # 収集したデータをCSVファイルに変換
 df = pd.DataFrame(all_data)
 # CSVファイルで保存(df.to_excel("任意のファイル名.csv"))
-df.to_excel("fukuoka_raw_data.csv")
+df.to_csv("fukuoka_raw_data.csv")
