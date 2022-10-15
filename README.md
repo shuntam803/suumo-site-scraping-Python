@@ -1,5 +1,5 @@
-|1 PythonでSUUMOの賃貸物件情報をスクレイピングする【requests| BeautifulSoup| pandas等】|
-|:----|:----|:----|
+|1 PythonでSUUMOの賃貸物件情報をスクレイピングする【requests BeautifulSoup pandas等】|
+|:----|
 |1.1 1. 取得したいデータの確認（おさらい）|
 |1.1.1 最終的なアウトプットを確認|
 |1.1.2 対象データは博多区|
