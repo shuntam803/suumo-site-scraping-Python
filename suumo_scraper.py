@@ -1,95 +1,98 @@
 """
-Created on Sat Oct 15 10:27:45 2022
-
+Created on Thu Apr 27 10:27:45 2023
 @author: shuncub
-
-Pythonを使いSUUMOのサイトをスクレイピングしCSVファイルで保存するプログラム
+SUUMOのサイトをスクレイピングしCSVファイルで保存するプログラム
 """
-
-
-from retry import retry
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+from retry import retry
 
 # 博多区賃貸のHTML
 base_url = "https://suumo.jp/jj/chintai/ichiran/FR301FC001/?ar=090&bs=040&ta=40&sc=40132&cb=0.0&ct=9999999&et=9999999&cn=9999999&mb=0&mt=9999999&shkr1=03&shkr2=03&shkr3=03&shkr4=03&fw2=&srch_navi=1"
 
 
-@retry(tries=3, delay=10, backoff=2)
+@retry(tries=3, delay=4, backoff=2)
 def get_html(url):
+    """
+    指定されたURLからHTMLを取得し、BeautifulSoupオブジェクトを返します。
+    リクエストに失敗した場合、最大3回リトライします。リトライ間隔は4秒で、バックオフ係数は2です。
+    :param url: スクレイピング対象のURL
+    :return: BeautifulSoupオブジェクト
+    """
     r = requests.get(url)
     soup = BeautifulSoup(r.content, "html.parser")
     return soup
 
 
-all_data = []
-# 読み込むページ数(ページ数が多いと時間がかかります)
-max_page = 10
+def extract_data(item):
+    """
+    物件情報を抽出し、物件データとアクセス情報を返します。
+    :param item: 物件情報を含むHTML要素
+    :return: [property_data, stations] 物件データとアクセス情報
+    """
+    property_data = {}
+    property_data["名称"] = item.find("div", {"class": "cassetteitem_content-title"}).text.strip()
+    property_data["カテゴリー"] = item.find("div", {"class": "cassetteitem_content-label"}).text.strip()
+    property_data["アドレス"] = item.find("li", {"class": "cassetteitem_detail-col1"}).text.strip()
+    property_data["築年数"] = item.find("li", {"class": "cassetteitem_detail-col3"}).find_all("div")[0].text.strip()
+    property_data["構造"] = item.find("li", {"class": "cassetteitem_detail-col3"}).find_all("div")[1].text.strip()
+    stations = item.find_all("div", {"class": "cassetteitem_detail-text"})
+    return [property_data, stations]
 
-for page in range(1, max_page+1):
-    # URLを定義
-    url = base_url.format(page)
 
-    # HTMLを取得
-    soup = get_html(url)
+def extract_room_data(tbody, property_data, station_data):
+    """
+    部屋情報を抽出し、物件データとアクセス情報を含む辞書を返します。
+    :param tbody: 部屋情報を含むHTML要素
+    :param property_data: 物件データ
+    :param station_data: アクセス情報
+    :return: room_data 物件データとアクセス情報を含む辞書
+    """
+    room_data = property_data.copy()
+    room_data["アクセス"] = station_data.text.strip()
+    room_data["階数"] = tbody.find_all("td")[2].text.strip()
+    room_data["家賃"] = tbody.find_all("td")[3].find_all("li")[0].text.strip()
+    room_data["管理費"] = tbody.find_all("td")[3].find_all("li")[1].text.strip()
+    room_data["敷金"] = tbody.find_all("td")[4].find_all("li")[0].text.strip()
+    room_data["礼金"] = tbody.find_all("td")[4].find_all("li")[1].text.strip()
+    room_data["間取り"] = tbody.find_all("td")[5].find_all("li")[0].text.strip()
+    room_data["面積"] = tbody.find_all("td")[5].find_all("li")[1].text.strip()
+    room_data["URL"] = "https://suumo.jp" + tbody.find_all("td")[8].find("a").get("href")
+    return room_data
 
-    # すべてのアイテムを抽出
-    items = soup.findAll("div", {"class": "cassetteitem"})
-    print("page", page, "items", len(items))
 
-    # 各アイテムを処理する
-    for item in items:
-        stations = item.findAll("div", {"class": "cassetteitem_detail-text"})
+def main():
+    """
+    博多区賃貸情報を複数のページから取得し、それらの情報を結合してCSVファイルに出力する。
+    この関数は、指定されたページ数の博多区賃貸情報を取得します。
+    各ページから賃貸物件のデータを抽出し、全てのデータを結合してデータフレームに格納します。
+    最後に、データフレームをCSVファイルに出力します。
+    """
+    all_data = []
+    # 読み込むページ数(ページ数が多いと時間がかかります)
+    max_page = 10
 
-        # 各物件の処理
-        for station in stations:
-            # 変数を定義する
-            base_data = {}
+    for page in range(1, max_page + 1):
+        url = base_url.format(page)
+        soup = get_html(url)
+        items = soup.find_all("div", {"class": "cassetteitem"})
+        print(f"page {page} items {len(items)}") 
 
-            # 取得する物件の情報
-            base_data["名称"] = item.find(
-                "div", {"class": "cassetteitem_content-title"}).getText().strip()
-            base_data["カテゴリー"] = item.find(
-                "div", {"class": "cassetteitem_content-label"}).getText().strip()
-            base_data["アドレス"] = item.find(
-                "li", {"class": "cassetteitem_detail-col1"}).getText().strip()
-            base_data["アクセス"] = station.getText().strip()
-            base_data["築年数"] = item.find(
-                "li", {"class": "cassetteitem_detail-col3"}).findAll("div")[0].getText().strip()
-            base_data["構造"] = item.find(
-                "li", {"class": "cassetteitem_detail-col3"}).findAll("div")[1].getText().strip()
+        for item in items:
+            property_data, stations = extract_data(item)
+            stations = item.find_all("div", {"class": "cassetteitem_detail-text"})
 
-            # 収集する部屋の情報
-            tbodys = item.find(
-                "table", {"class": "cassetteitem_other"}).findAll("tbody")
+            for station in stations:
+                tbodys = item.find("table", {"class": "cassetteitem_other"}).find_all("tbody")
 
-            for tbody in tbodys:
-                data = base_data.copy()
+                for tbody in tbodys:
+                    room_data = extract_room_data(tbody, property_data, station)
+                    all_data.append(room_data)
 
-                data["階数"] = tbody.findAll("td")[2].getText().strip()
+    df = pd.DataFrame(all_data, index=range(1, len(all_data) + 1))
+    df.to_csv("fukuoka_raw_data.csv", encoding="utf-8-sig")
 
-                data["家賃"] = tbody.findAll("td")[3].findAll("li")[
-                    0].getText().strip()
-                data["管理費"] = tbody.findAll("td")[3].findAll("li")[
-                    1].getText().strip()
 
-                data["敷金"] = tbody.findAll("td")[4].findAll("li")[
-                    0].getText().strip()
-                data["礼金"] = tbody.findAll("td")[4].findAll("li")[
-                    1].getText().strip()
-
-                data["間取り"] = tbody.findAll("td")[5].findAll("li")[
-                    0].getText().strip()
-                data["面積"] = tbody.findAll("td")[5].findAll("li")[
-                    1].getText().strip()
-
-                data["URL"] = "https://suumo.jp" + \
-                    tbody.findAll("td")[8].find("a").get("href")
-
-                all_data.append(data)
-
-# 収集したデータをCSVファイルに変換
-df = pd.DataFrame(all_data)
-# CSVファイルで保存(df.to_excel("任意のファイル名.csv"))
-df.to_csv("fukuoka_raw_data.csv")
+if __name__ == "__main__":
+    main()
